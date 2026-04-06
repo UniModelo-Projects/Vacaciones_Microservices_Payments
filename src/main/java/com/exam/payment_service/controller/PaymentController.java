@@ -12,15 +12,39 @@ public class PaymentController {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
     private final PaymentRepository paymentRepository;
+    private final org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate;
 
-    public PaymentController(PaymentRepository paymentRepository) {
+    public PaymentController(PaymentRepository paymentRepository, org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate) {
         this.paymentRepository = paymentRepository;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     @PostMapping("/procesar")
     public Payment processPayment(@RequestBody Payment payment) {
-        log.info("Processing payment for order: {}", payment.getOrdenId());
-        payment.setEstado("COMPLETADO");
+        try {
+            log.info("Processing payment for order: {}", payment.getOrdenId());
+            // Simulate random failure for testing retries
+            if (Math.random() < 0.3) {
+                throw new RuntimeException("Simulated failure during payment processing");
+            }
+            payment.setEstado("COMPLETADO");
+            return paymentRepository.save(payment);
+        } catch (Exception e) {
+            log.error("Error processing payment, sending to retry topic: {}", e.getMessage());
+            
+            java.util.Map<String, Object> wrappedPayload = new java.util.HashMap<>();
+            wrappedPayload.put("data", payment);
+            wrappedPayload.put("sendEmail", java.util.Map.of("status", "PENDING", "message", ""));
+            wrappedPayload.put("updateRetryJobs", java.util.Map.of("status", "PENDING", "message", ""));
+            
+            kafkaTemplate.send("payments_retry_jobs", wrappedPayload);
+            throw e;
+        }
+    }
+
+    @PostMapping("/retry")
+    public Payment retry(@RequestBody Payment payment) {
+        log.info("Retrying payment for order: {}", payment.getOrdenId());
         return paymentRepository.save(payment);
     }
 
