@@ -15,3 +15,6 @@ Manages payment processing.
 ## Endpoints
 - `POST /pagos/procesar`: Process a payment
 - `POST /pagos/retry`: Endpoint for Broker Service to retry payment processing.
+
+## Infrastructure Repo
+- [Main Infrastructure & Orchestration](https://github.com/UniModelo-Projects/Vacaciones_Microservices_Infrastructure)
